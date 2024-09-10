@@ -6,14 +6,9 @@ import (
 	"fmt"
 )
 
-type Store interface {
-	TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error)
-}
-
 type SQLStore struct {
 	db *sql.DB
 	*Repository
-	Store
 }
 
 func NewStore(db *sql.DB) *SQLStore {
@@ -23,13 +18,12 @@ func NewStore(db *sql.DB) *SQLStore {
 	}
 }
 
-func (store *SQLStore) execTx(ctx context.Context, fn func(store *SQLStore) error) error {
+func (store *SQLStore) execTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	q := NewStore(store.db)
-	err = fn(q)
+	err = fn(tx)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
 			return fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
@@ -56,7 +50,7 @@ type TransferTxResult struct {
 func (store *SQLStore) TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error) {
 	var result TransferTxResult
 
-	err := store.execTx(ctx, func(q *SQLStore) error {
+	err := store.execTx(ctx, func(tx *sql.Tx) error {
 		var err error
 
 		result.Transfer, err = store.CreateTransfer(ctx, CreateTransferParams{

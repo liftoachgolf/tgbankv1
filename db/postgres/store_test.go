@@ -14,12 +14,11 @@ func TestTransferTx(t *testing.T) {
 	account2 := CreateRandomAccount(t)
 
 	n := 5
-	amount := int64(10) //count of money that being transfered
+	amount := int64(10)
 
 	errs := make(chan error)
 	results := make(chan TransferTxResult)
 
-	// run n concurrent transfer transaction
 	for i := 0; i < n; i++ {
 
 		go func(i int) {
@@ -35,7 +34,6 @@ func TestTransferTx(t *testing.T) {
 		}(i)
 	}
 
-	//check results
 	existed := make(map[int]bool)
 
 	for i := 0; i < n; i++ {
@@ -93,7 +91,7 @@ func TestTransferTx(t *testing.T) {
 		diff2 := toAccount.Balance - account2.Balance
 		require.Equal(t, diff1, diff2)
 		require.True(t, diff1 > 0)
-		require.True(t, diff1%amount == 0) // 1 * amount, 2 * amount, 3 * amount, ..., n * amount
+		require.True(t, diff1%amount == 0)
 
 		k := int(diff1 / amount)
 		require.True(t, k >= 1 && k <= n)
@@ -119,11 +117,10 @@ func TestTransferTxDeadlock(t *testing.T) {
 	account2 := CreateRandomAccount(t)
 
 	n := 10
-	amount := int64(10) //count of money that being transfered
+	amount := int64(10)
 
 	errs := make(chan error)
 
-	// run n concurrent transfer transaction
 	for i := 0; i < n; i++ {
 		fromAccountID := account1.ID
 		toAccountID := account2.ID
@@ -144,8 +141,6 @@ func TestTransferTxDeadlock(t *testing.T) {
 			errs <- err
 		}(i)
 	}
-
-	//check results
 
 	for i := 0; i < n; i++ {
 		err := <-errs
