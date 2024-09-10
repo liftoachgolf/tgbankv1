@@ -2,14 +2,25 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 )
+
+type AccountDB struct {
+	db *sql.DB
+}
+
+func NewAccountDb(db *sql.DB) *AccountDB {
+	return &AccountDB{
+		db: db,
+	}
+}
 
 type AddAccountBalanceParams struct {
 	Amount int64 `json:"amount"`
 	ID     int64 `json:"id"`
 }
 
-func (q *Queries) AddAccountBalance(ctx context.Context, arg AddAccountBalanceParams) (Account, error) {
+func (q *AccountDB) AddAccountBalance(ctx context.Context, arg AddAccountBalanceParams) (Account, error) {
 	query := `
 		UPDATE accounts
 		SET balance = balance + $1
@@ -34,7 +45,7 @@ type CreateAccountParams struct {
 	Currency string `json:"currency"`
 }
 
-func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+func (q *AccountDB) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
 	query := `
 		INSERT INTO accounts (
 			owner,
@@ -56,7 +67,7 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 	return i, err
 }
 
-func (q *Queries) DeleteAccount(ctx context.Context, id int64) error {
+func (q *AccountDB) DeleteAccount(ctx context.Context, id int64) error {
 	query := `
 		DELETE FROM accounts
 		WHERE id = $1
@@ -65,7 +76,7 @@ func (q *Queries) DeleteAccount(ctx context.Context, id int64) error {
 	return err
 }
 
-func (q *Queries) GetAccount(ctx context.Context, id int64) (Account, error) {
+func (q *AccountDB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
@@ -83,7 +94,7 @@ func (q *Queries) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return i, err
 }
 
-func (q *Queries) GetAccountForUpdate(ctx context.Context, id int64) (Account, error) {
+func (q *AccountDB) GetAccountForUpdate(ctx context.Context, id int64) (Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
@@ -107,7 +118,7 @@ type ListAccountsParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]Account, error) {
+func (q *AccountDB) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
@@ -147,7 +158,7 @@ type UpdateAccountParams struct {
 	Balance int64 `json:"balance"`
 }
 
-func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
+func (q *AccountDB) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
 	query := `
 		UPDATE accounts
 		SET balance = $2
@@ -164,4 +175,24 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+func (q *AccountDB) addMoney(ctx context.Context, accountID1 int64, amount1 int64, accountID2 int64, amount2 int64) (account1 Account, account2 Account, err error) {
+	account1, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+		ID:     accountID1,
+		Amount: amount1,
+	})
+	if err != nil {
+		return
+	}
+
+	account2, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+		ID:     accountID2,
+		Amount: amount2,
+	})
+	if err != nil {
+		return
+	}
+	return
+
 }
