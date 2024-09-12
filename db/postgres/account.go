@@ -3,24 +3,20 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"tgBank/models"
 )
 
-type AccountDB struct {
+type AccountSQLImpl struct {
 	db *sql.DB
 }
 
-func NewAccountDb(db *sql.DB) *AccountDB {
-	return &AccountDB{
+func NewAccountSQL(db *sql.DB) *AccountSQLImpl {
+	return &AccountSQLImpl{
 		db: db,
 	}
 }
 
-type AddAccountBalanceParams struct {
-	Amount int64 `json:"amount"`
-	ID     int64 `json:"id"`
-}
-
-func (q *AccountDB) AddAccountBalance(ctx context.Context, arg AddAccountBalanceParams) (Account, error) {
+func (q *AccountSQLImpl) AddAccountBalance(ctx context.Context, arg models.AddAccountBalanceParams) (models.Account, error) {
 	query := `
 		UPDATE accounts
 		SET balance = balance + $1
@@ -28,7 +24,7 @@ func (q *AccountDB) AddAccountBalance(ctx context.Context, arg AddAccountBalance
 		RETURNING id, owner, balance, currency, created_at
 	`
 	row := q.db.QueryRowContext(ctx, query, arg.Amount, arg.ID)
-	var i Account
+	var i models.Account
 	err := row.Scan(
 		&i.ID,
 		&i.Owner,
@@ -39,13 +35,7 @@ func (q *AccountDB) AddAccountBalance(ctx context.Context, arg AddAccountBalance
 	return i, err
 }
 
-type CreateAccountParams struct {
-	Owner    string `json:"owner"`
-	Balance  int64  `json:"balance"`
-	Currency string `json:"currency"`
-}
-
-func (q *AccountDB) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+func (q *AccountSQLImpl) CreateAccount(ctx context.Context, arg models.CreateAccountParams) (models.Account, error) {
 	query := `
 		INSERT INTO accounts (
 			owner,
@@ -56,7 +46,7 @@ func (q *AccountDB) CreateAccount(ctx context.Context, arg CreateAccountParams) 
 		) RETURNING id, owner, balance, currency, created_at
 	`
 	row := q.db.QueryRowContext(ctx, query, arg.Owner, arg.Balance, arg.Currency)
-	var i Account
+	var i models.Account
 	err := row.Scan(
 		&i.ID,
 		&i.Owner,
@@ -67,7 +57,7 @@ func (q *AccountDB) CreateAccount(ctx context.Context, arg CreateAccountParams) 
 	return i, err
 }
 
-func (q *AccountDB) DeleteAccount(ctx context.Context, id int64) error {
+func (q *AccountSQLImpl) DeleteAccount(ctx context.Context, id int64) error {
 	query := `
 		DELETE FROM accounts
 		WHERE id = $1
@@ -76,14 +66,14 @@ func (q *AccountDB) DeleteAccount(ctx context.Context, id int64) error {
 	return err
 }
 
-func (q *AccountDB) GetAccount(ctx context.Context, id int64) (Account, error) {
+func (q *AccountSQLImpl) GetAccount(ctx context.Context, id int64) (models.Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
 		WHERE id = $1 LIMIT 1
 	`
 	row := q.db.QueryRowContext(ctx, query, id)
-	var i Account
+	var i models.Account
 	err := row.Scan(
 		&i.ID,
 		&i.Owner,
@@ -94,7 +84,7 @@ func (q *AccountDB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return i, err
 }
 
-func (q *AccountDB) GetAccountForUpdate(ctx context.Context, id int64) (Account, error) {
+func (q *AccountSQLImpl) GetAccountForUpdate(ctx context.Context, id int64) (models.Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
@@ -102,7 +92,7 @@ func (q *AccountDB) GetAccountForUpdate(ctx context.Context, id int64) (Account,
 		FOR NO KEY UPDATE
 	`
 	row := q.db.QueryRowContext(ctx, query, id)
-	var i Account
+	var i models.Account
 	err := row.Scan(
 		&i.ID,
 		&i.Owner,
@@ -113,12 +103,7 @@ func (q *AccountDB) GetAccountForUpdate(ctx context.Context, id int64) (Account,
 	return i, err
 }
 
-type ListAccountsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
-}
-
-func (q *AccountDB) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]Account, error) {
+func (q *AccountSQLImpl) ListAccounts(ctx context.Context, arg models.ListAccountsParams) ([]models.Account, error) {
 	query := `
 		SELECT id, owner, balance, currency, created_at 
 		FROM accounts
@@ -130,9 +115,9 @@ func (q *AccountDB) ListAccounts(ctx context.Context, arg ListAccountsParams) ([
 	}
 	defer rows.Close()
 
-	items := []Account{}
+	items := []models.Account{}
 	for rows.Next() {
-		var i Account
+		var i models.Account
 		if err := rows.Scan(
 			&i.ID,
 			&i.Owner,
@@ -153,12 +138,7 @@ func (q *AccountDB) ListAccounts(ctx context.Context, arg ListAccountsParams) ([
 	return items, nil
 }
 
-type UpdateAccountParams struct {
-	ID      int64 `json:"id"`
-	Balance int64 `json:"balance"`
-}
-
-func (q *AccountDB) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
+func (q *AccountSQLImpl) UpdateAccount(ctx context.Context, arg models.UpdateAccountParams) (models.Account, error) {
 	query := `
 		UPDATE accounts
 		SET balance = $2
@@ -166,7 +146,7 @@ func (q *AccountDB) UpdateAccount(ctx context.Context, arg UpdateAccountParams) 
 		RETURNING id, owner, balance, currency, created_at
 	`
 	row := q.db.QueryRowContext(ctx, query, arg.ID, arg.Balance)
-	var i Account
+	var i models.Account
 	err := row.Scan(
 		&i.ID,
 		&i.Owner,
@@ -177,8 +157,8 @@ func (q *AccountDB) UpdateAccount(ctx context.Context, arg UpdateAccountParams) 
 	return i, err
 }
 
-func (q *AccountDB) addMoney(ctx context.Context, accountID1 int64, amount1 int64, accountID2 int64, amount2 int64) (account1 Account, account2 Account, err error) {
-	account1, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+func (q *AccountSQLImpl) addMoney(ctx context.Context, accountID1 int64, amount1 int64, accountID2 int64, amount2 int64) (account1 models.Account, account2 models.Account, err error) {
+	account1, err = q.AddAccountBalance(ctx, models.AddAccountBalanceParams{
 		ID:     accountID1,
 		Amount: amount1,
 	})
@@ -186,7 +166,7 @@ func (q *AccountDB) addMoney(ctx context.Context, accountID1 int64, amount1 int6
 		return
 	}
 
-	account2, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+	account2, err = q.AddAccountBalance(ctx, models.AddAccountBalanceParams{
 		ID:     accountID2,
 		Amount: amount2,
 	})

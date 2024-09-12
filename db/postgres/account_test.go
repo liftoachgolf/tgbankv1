@@ -3,14 +3,15 @@ package postgres
 import (
 	"context"
 	"testing"
+	"tgBank/models"
 	"tgBank/utils"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func CreateRandomAccount(t *testing.T) Account {
-	arg := CreateAccountParams{
+func CreateRandomAccount(t *testing.T) models.Account {
+	arg := models.CreateAccountParams{
 		Owner:    utils.RandomOwner(),
 		Balance:  utils.RandomMoney(),
 		Currency: utils.RandomCurrency(),
@@ -44,7 +45,7 @@ func TestGetAccount(t *testing.T) {
 func TestUpdateAccount(t *testing.T) {
 	acc := CreateRandomAccount(t)
 
-	var argUpd = UpdateAccountParams{
+	var argUpd = models.UpdateAccountParams{
 		ID:      acc.ID,
 		Balance: acc.Balance,
 	}
@@ -61,11 +62,11 @@ func TestUpdateAccount(t *testing.T) {
 }
 
 func TestListAccounts(t *testing.T) {
-	var acc []Account
+	var acc []models.Account
 	for i := 0; i < 10; i++ {
 		acc = append(acc, CreateRandomAccount(t))
 	}
-	arg := ListAccountsParams{
+	arg := models.ListAccountsParams{
 		Offset: int32(acc[0].ID - 1),
 		Limit:  10,
 	}

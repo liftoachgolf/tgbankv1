@@ -4,21 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"tgBank/models"
 )
 
-type SQLStore struct {
+type StoreSQLImpl struct {
 	db *sql.DB
 	*Repository
 }
 
-func NewStore(db *sql.DB) *SQLStore {
-	return &SQLStore{
-		db:         db,
-		Repository: NewRepository(db),
+func NewStoreSQL(db *sql.DB) *StoreSQLImpl {
+	return &StoreSQLImpl{
+		db: db,
 	}
 }
 
-func (store *SQLStore) execTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+func (store *StoreSQLImpl) execTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -33,27 +33,13 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(tx *sql.Tx) error) er
 	return tx.Commit()
 }
 
-type TransferTxParams struct {
-	FromAccountID int64 `json:"from_account_id"`
-	ToAccountID   int64 `json:"to_account_id"`
-	Amount        int64 `json:"amount"`
-}
-
-type TransferTxResult struct {
-	Transfer    Transfer `json:"transfer"`
-	FromAccount Account  `json:"from_account"`
-	ToAccount   Account  `json:"to_account"`
-	FromEntry   Entry    `json:"from_entry"`
-	ToEntry     Entry    `json:"to_entry"`
-}
-
-func (store *SQLStore) TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error) {
-	var result TransferTxResult
+func (store *StoreSQLImpl) TransferTx(ctx context.Context, arg models.TransferTxParams) (models.TransferTxResult, error) {
+	var result models.TransferTxResult
 
 	err := store.execTx(ctx, func(tx *sql.Tx) error {
 		var err error
 
-		result.Transfer, err = store.CreateTransfer(ctx, CreateTransferParams{
+		result.Transfer, err = store.CreateTransfer(ctx, models.CreateTransferParams{
 			FromAccountID: arg.FromAccountID,
 			ToAccountID:   arg.ToAccountID,
 			Amount:        arg.Amount,
@@ -62,7 +48,7 @@ func (store *SQLStore) TransferTx(ctx context.Context, arg TransferTxParams) (Tr
 			return err
 		}
 
-		result.FromEntry, err = store.CreateEntry(ctx, CreateEntryParams{
+		result.FromEntry, err = store.CreateEntry(ctx, models.CreateEntryParams{
 			AccountID: arg.FromAccountID,
 			Amount:    -arg.Amount,
 		})
@@ -71,7 +57,7 @@ func (store *SQLStore) TransferTx(ctx context.Context, arg TransferTxParams) (Tr
 			return err
 		}
 
-		result.ToEntry, err = store.CreateEntry(ctx, CreateEntryParams{
+		result.ToEntry, err = store.CreateEntry(ctx, models.CreateEntryParams{
 			AccountID: arg.ToAccountID,
 			Amount:    arg.Amount,
 		})

@@ -3,12 +3,13 @@ package postgres
 import (
 	"context"
 	"testing"
+	"tgBank/models"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestTransferTx(t *testing.T) {
-	store := NewStore(testDB)
+	store := NewStoreSQL(testDB)
 
 	account1 := CreateRandomAccount(t)
 	account2 := CreateRandomAccount(t)
@@ -17,13 +18,13 @@ func TestTransferTx(t *testing.T) {
 	amount := int64(10)
 
 	errs := make(chan error)
-	results := make(chan TransferTxResult)
+	results := make(chan models.TransferTxResult)
 
 	for i := 0; i < n; i++ {
 
 		go func(i int) {
 
-			result, err := store.TransferTx(context.Background(), TransferTxParams{
+			result, err := store.TransferTx(context.Background(), models.TransferTxParams{
 				FromAccountID: account1.ID,
 				ToAccountID:   account2.ID,
 				Amount:        amount,
@@ -111,7 +112,7 @@ func TestTransferTx(t *testing.T) {
 }
 
 func TestTransferTxDeadlock(t *testing.T) {
-	store := NewStore(testDB)
+	store := NewStoreSQL(testDB)
 
 	account1 := CreateRandomAccount(t)
 	account2 := CreateRandomAccount(t)
@@ -132,7 +133,7 @@ func TestTransferTxDeadlock(t *testing.T) {
 
 		go func(i int) {
 
-			_, err := store.TransferTx(context.Background(), TransferTxParams{
+			_, err := store.TransferTx(context.Background(), models.TransferTxParams{
 				FromAccountID: fromAccountID,
 				ToAccountID:   toAccountID,
 				Amount:        amount,

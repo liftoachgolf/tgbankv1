@@ -3,25 +3,20 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"tgBank/models"
 )
 
-type TransferDb struct {
+type TransferSQLIMPl struct {
 	db *sql.DB
 }
 
-func NewTransferDb(db *sql.DB) *TransferDb {
-	return &TransferDb{
+func NewTransferSQL(db *sql.DB) *TransferSQLIMPl {
+	return &TransferSQLIMPl{
 		db: db,
 	}
 }
 
-type CreateTransferParams struct {
-	FromAccountID int64 `json:"from_account_id"`
-	ToAccountID   int64 `json:"to_account_id"`
-	Amount        int64 `json:"amount"`
-}
-
-func (q *TransferDb) CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error) {
+func (q *TransferSQLIMPl) CreateTransfer(ctx context.Context, arg models.CreateTransferParams) (models.Transfer, error) {
 	query := `INSERT INTO transfers(
     from_account_id,
     to_account_id,
@@ -30,7 +25,7 @@ func (q *TransferDb) CreateTransfer(ctx context.Context, arg CreateTransferParam
     $1, $2, $3
 ) RETURNING id, from_account_id, to_account_id, amount, created_at`
 	row := q.db.QueryRowContext(ctx, query, arg.FromAccountID, arg.ToAccountID, arg.Amount)
-	var i Transfer
+	var i models.Transfer
 	err := row.Scan(
 		&i.ID,
 		&i.FromAccountID,
@@ -41,12 +36,12 @@ func (q *TransferDb) CreateTransfer(ctx context.Context, arg CreateTransferParam
 	return i, err
 }
 
-func (q *TransferDb) GetTransfer(ctx context.Context, id int64) (Transfer, error) {
+func (q *TransferSQLIMPl) GetTransfer(ctx context.Context, id int64) (models.Transfer, error) {
 	query := `SELECT id, from_account_id, to_account_id, amount, created_at FROM transfers
 WHERE id = $1
 LIMIT 1`
 	row := q.db.QueryRowContext(ctx, query, id)
-	var i Transfer
+	var i models.Transfer
 	err := row.Scan(
 		&i.ID,
 		&i.FromAccountID,
@@ -57,14 +52,7 @@ LIMIT 1`
 	return i, err
 }
 
-type ListTransfersParams struct {
-	FromAccountID int64 `json:"from_account_id"`
-	ToAccountID   int64 `json:"to_account_id"`
-	Limit         int32 `json:"limit"`
-	Offset        int32 `json:"offset"`
-}
-
-func (q *TransferDb) ListTransfers(ctx context.Context, arg ListTransfersParams) ([]Transfer, error) {
+func (q *TransferSQLIMPl) ListTransfers(ctx context.Context, arg models.ListTransfersParams) ([]models.Transfer, error) {
 	query := `SELECT id, from_account_id, to_account_id, amount, created_at FROM transfers
 WHERE(
     from_account_id = $1
@@ -84,9 +72,9 @@ OFFSET $4
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Transfer{}
+	items := []models.Transfer{}
 	for rows.Next() {
-		var i Transfer
+		var i models.Transfer
 		if err := rows.Scan(
 			&i.ID,
 			&i.FromAccountID,
