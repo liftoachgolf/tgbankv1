@@ -24,4 +24,5 @@ func TestMain(m *testing.M) {
 	}
 
 	testQueries = NewRepository(testDB)
+	m.Run()
 }

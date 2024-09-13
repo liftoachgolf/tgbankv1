@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	"tgBank/db/postgres"
 	"tgBank/models"
+	"tgBank/pkg/postgres"
 )
 
 type EntryServiceImpl struct {

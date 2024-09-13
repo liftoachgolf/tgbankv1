@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"database/sql"
-	"tgBank/db/postgres"
 	"tgBank/models"
+	"tgBank/pkg/postgres"
 )
 
 type StoreServiceImpl struct {

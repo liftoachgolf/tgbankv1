@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
-	"tgBank/db/postgres"
+
 	"tgBank/models"
+	"tgBank/pkg/postgres"
 )
 
 type AccountService interface {
@@ -14,7 +15,6 @@ type AccountService interface {
 	GetAccountForUpdate(ctx context.Context, id int64) (models.Account, error)
 	ListAccounts(ctx context.Context, arg models.ListAccountsParams) ([]models.Account, error)
 	UpdateAccount(ctx context.Context, arg models.UpdateAccountParams) (models.Account, error)
-	addMoney(ctx context.Context, accountID1 int64, amount1 int64, accountID2 int64, amount2 int64) (account1 models.Account, account2 models.Account, err error)
 }
 
 type EntryService interface {
