@@ -1,8 +1,12 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
+	serviceTg "tgBank/internal/servivceTg"
 	"tgBank/models"
 	"tgBank/pkg/telegram"
 	"time"
@@ -15,14 +19,16 @@ type Processor interface {
 }
 
 type processor struct {
-	tgClient telegram.Client
-	offset   int
+	tgClient  telegram.Client
+	tgService *serviceTg.ServiceTg // Добавляем ссылку на сервис работы с базой данных
+	offset    int
 }
 
-func NewProcessor(tgClient telegram.Client) Processor {
+func NewProcessor(tgClient telegram.Client, tgService *serviceTg.ServiceTg) Processor {
 	return &processor{
-		tgClient: tgClient,
-		offset:   0,
+		tgClient:  tgClient,
+		tgService: tgService, // Инициализируем сервис
+		offset:    0,
 	}
 }
 
@@ -30,9 +36,15 @@ func NewProcessor(tgClient telegram.Client) Processor {
 func (p *processor) HandleMessage(msg models.Message) error {
 	log.Print(msg.MessageId)
 	log.Print(msg.Username)
+	fmt.Printf("chat id: %d\n", msg.ChatId)
 
+	msgs := strings.Fields(msg.Text)
 	if msg.Text == "/start" {
-		err := p.tgClient.SendMessage(msg.ChatId, "саламуалейкум брат")
+		err := p.tgService.MessageTgService.CreateMessage(msg)
+		if err != nil {
+			return fmt.Errorf("error while adding msg to db: %w ", err)
+		}
+		err = p.tgClient.SendMessage(msg.ChatId, "саламуалейкум брат, ваш аккаунт создан")
 		if err != nil {
 			return err
 		}
@@ -43,9 +55,41 @@ func (p *processor) HandleMessage(msg models.Message) error {
 			MessageId: msg.MessageId + 1,
 		})
 	}
+
+	if msgs[0] == "Пополнить" {
+		amount, err := strconv.ParseInt(msgs[1], 10, 64)
+		if err != nil {
+			return err
+		}
+		acc, err := p.tgService.AccountTgService.AddAccountBalance(context.Background(), models.AddAccountTgBalanceParams{
+			Amount: amount,
+			ChatID: int64(msg.ChatId),
+		})
+		if err != nil {
+			return err
+		}
+		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprint("ur new balance: ", acc.Balance))
+	}
+	if msgs[0] == "Перевести" {
+		toChat, err := strconv.ParseInt(msgs[1], 10, 64)
+		if err != nil {
+			return err
+		}
+		amount, err := strconv.ParseInt(msgs[2], 10, 64)
+		if err != nil {
+			return err
+		}
+		res, err := p.tgService.StoreTgService.TransferTx(context.Background(), models.TransferTgTxParams{
+			FromChatId: int64(msg.ChatId),
+			ToChatId:   toChat,
+			Amount:     amount,
+		})
+		fmt.Print(res)
+		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprintf("теперь твой баланс равен: %d, а баланс получателя: %d", res.FromChatId.Balance, res.ToChatId.Balance))
+	}
+
 	return p.tgClient.SendMessage(msg.ChatId, msg.Text)
 }
-
 func (p *processor) Fetch(limit int) ([]models.Message, error) {
 	updates, err := p.tgClient.GetUpdates(p.offset, limit)
 	if err != nil {
@@ -73,13 +117,6 @@ func (p *processor) processEvent(u models.Update) models.Message {
 		Username:  u.GetMessage.From.Username,
 		MessageId: u.GetMessage.MessageId,
 	}
-
-	// // Сохранение сообщения в базу данных
-	// err := p.msgRepo.SaveMessage(msg)
-	// if err != nil {
-	// 	fmt.Printf("error saving message: %v\n", err)
-	// }
-
 	return msg
 }
 
