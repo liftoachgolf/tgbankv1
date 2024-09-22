@@ -6,9 +6,11 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	processstateuser "tgBank/internal/processStateUser"
 	serviceTg "tgBank/internal/servivceTg"
 	"tgBank/models"
 	"tgBank/pkg/telegram"
+	userstate "tgBank/pkg/userStateRepo"
 	"time"
 )
 
@@ -19,44 +21,118 @@ type Processor interface {
 }
 
 type processor struct {
-	tgClient  telegram.Client
-	tgService *serviceTg.ServiceTg // Добавляем ссылку на сервис работы с базой данных
-	offset    int
+	tgClient    telegram.Client
+	tgService   *serviceTg.ServiceTg
+	tgUserState *processstateuser.ProcessUserStateService
+	offset      int
 }
 
-func NewProcessor(tgClient telegram.Client, tgService *serviceTg.ServiceTg) Processor {
+func NewProcessor(tgClient telegram.Client, tgService *serviceTg.ServiceTg, tgUserState *processstateuser.ProcessUserStateService) Processor {
 	return &processor{
-		tgClient:  tgClient,
-		tgService: tgService, // Инициализируем сервис
-		offset:    0,
+		tgClient:    tgClient,
+		tgService:   tgService, // Инициализируем сервис
+		tgUserState: tgUserState,
+		offset:      0,
 	}
 }
 
-// HandleMessage обрабатывает входящие сообщения
 func (p *processor) HandleMessage(msg models.Message) error {
 	log.Print(msg.MessageId)
 	log.Print(msg.Username)
 	fmt.Printf("chat id: %d\n", msg.ChatId)
 
 	msgs := strings.Fields(msg.Text)
-	if msg.Text == "/start" {
-		err := p.tgService.MessageTgService.CreateMessage(msg)
+	command := msgs[0]
+
+	if command == "Начать" {
+		err := p.tgUserState.SetState(int64(msg.ChatId), userstate.UserState{State: "WAITING_FOR_HELLO"})
 		if err != nil {
-			return fmt.Errorf("error while adding msg to db: %w ", err)
+			fmt.Errorf("error while setting user state")
 		}
-		err = p.tgClient.SendMessage(msg.ChatId, "саламуалейкум брат, ваш аккаунт создан")
+	}
+
+	state, err := p.tgUserState.UserStateService.GetState(int64(msg.ChatId))
+	if err != nil {
+		log.Printf("Ошибка получения состояния пользователя: %v", err)
+
+		state = userstate.UserState{State: "START"}
+	}
+
+	switch state.State {
+	case "START":
+		if command == "/start" {
+
+			err := p.tgService.MessageTgService.CreateMessage(msg)
+			if err != nil {
+				return fmt.Errorf("error while adding msg to db: %w ", err)
+			}
+			err = p.tgClient.SendMessage(msg.ChatId, "ваш аккаунт зарегистрирован")
+			if err != nil {
+				return err
+			}
+			time.Sleep(1 * time.Second)
+			err = p.tgClient.UpdateMessage(models.UpdateMessage{
+				Text:      "Привет! Я ваш бот.",
+				ChatId:    msg.ChatId,
+				MessageId: msg.MessageId + 1,
+			})
+			if err != nil {
+				return err
+			}
+
+			err = p.tgUserState.SetState(int64(msg.ChatId), userstate.UserState{State: "WAITING_FOR_HELLO"})
+			if err != nil {
+				return fmt.Errorf("error setting user state: %w", err)
+			}
+			return nil
+		}
+
+	case "WAITING_FOR_HELLO":
+		if strings.ToLower(msg.Text) == "привет" {
+			err := p.tgClient.SendMessage(msg.ChatId, "Как дела?")
+			if err != nil {
+				return err
+			}
+			err = p.tgUserState.SetState(int64(msg.ChatId), userstate.UserState{State: "END"})
+			if err != nil {
+				return fmt.Errorf("error setting user state: %w", err)
+			}
+			return nil
+		} else {
+			err := p.tgClient.SendMessage(msg.ChatId, "Пожалуйста, напишите 'привет'.")
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
+	case "END":
+		err := p.tgClient.SendMessage(msg.ChatId, "До свидания!")
 		if err != nil {
 			return err
 		}
-		time.Sleep(1 * time.Second)
-		return p.tgClient.UpdateMessage(models.UpdateMessage{
-			Text:      "дима пидар",
-			ChatId:    msg.ChatId,
-			MessageId: msg.MessageId + 1,
-		})
+		// Сброс состояния
+		err = p.tgUserState.SetState(int64(msg.ChatId), userstate.UserState{State: "START"})
+		if err != nil {
+			return fmt.Errorf("error resetting user state: %w", err)
+		}
+		return nil
+
+	default:
+
+		err := p.tgClient.SendMessage(msg.ChatId, "Неизвестное состояние. Сброс состояния.")
+		if err != nil {
+			return err
+		}
+		// Сброс состояния
+		err = p.tgUserState.SetState(int64(msg.ChatId), userstate.UserState{State: "START"})
+		if err != nil {
+			return fmt.Errorf("error resetting user state: %w", err)
+		}
+		return nil
 	}
 
-	if msgs[0] == "Пополнить" {
+	if command == "Пополнить" {
 		amount, err := strconv.ParseInt(msgs[1], 10, 64)
 		if err != nil {
 			return err
@@ -68,9 +144,9 @@ func (p *processor) HandleMessage(msg models.Message) error {
 		if err != nil {
 			return err
 		}
-		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprint("ur new balance: ", acc.Balance))
+		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprintf("Ваш новый баланс: %d", acc.Balance))
 	}
-	if msgs[0] == "Перевести" {
+	if command == "Перевести" {
 		toChat, err := strconv.ParseInt(msgs[1], 10, 64)
 		if err != nil {
 			return err
@@ -84,10 +160,13 @@ func (p *processor) HandleMessage(msg models.Message) error {
 			ToChatId:   toChat,
 			Amount:     amount,
 		})
-		fmt.Print(res)
-		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprintf("теперь твой баланс равен: %d, а баланс получателя: %d", res.FromChatId.Balance, res.ToChatId.Balance))
+		if err != nil {
+			return err
+		}
+		return p.tgClient.SendMessage(msg.ChatId, fmt.Sprintf("Теперь ваш баланс равен: %d, а баланс получателя: %d", res.FromChatId.Balance, res.ToChatId.Balance))
 	}
 
+	// Обработка неизвестных команд
 	return p.tgClient.SendMessage(msg.ChatId, msg.Text)
 }
 func (p *processor) Fetch(limit int) ([]models.Message, error) {
@@ -104,7 +183,6 @@ func (p *processor) Fetch(limit int) ([]models.Message, error) {
 		res = append(res, p.processEvent(u))
 	}
 
-	// Обновляем смещение
 	p.offset = updates[len(updates)-1].ID + 1
 
 	return res, nil
@@ -120,7 +198,6 @@ func (p *processor) processEvent(u models.Update) models.Message {
 	return msg
 }
 
-// fetchText получает текст сообщения из обновления
 func fetchText(u models.Update) string {
 	if u.GetMessage == nil {
 		return ""

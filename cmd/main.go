@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"tgBank/internal/handler"
+	processstateuser "tgBank/internal/processStateUser"
 	"tgBank/internal/processor"
 	serviceTg "tgBank/internal/servivceTg"
 	postgrestg "tgBank/pkg/postgresTg"
 	"tgBank/pkg/telegram"
+	userstate "tgBank/pkg/userStateRepo"
 
 	_ "github.com/lib/pq"
 )
@@ -21,14 +23,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while connecting to db: %v", err)
 	}
+	dbR, err := userstate.NewRedisClient()
+	if err != nil {
+		log.Fatalf("error while connecting to db: %v", err)
+	}
 
 	// Создание репозиториев
 	dbRepo := postgrestg.NewRepository(db)
 	telegramRepo := telegram.NewTelegramApiClient("api.telegram.org", t)
+	userStRepo := userstate.NewUserStateRepository(dbR)
 
 	// Создание сервисов
 	dbSrv := serviceTg.NewServiceTg(dbRepo)
-	telegramSvc := processor.NewProcessor(telegramRepo, dbSrv)
+	userStSrv := processstateuser.NewProcessUserStateService(userStRepo)
+	telegramSvc := processor.NewProcessor(telegramRepo, dbSrv, userStSrv)
 
 	// Создание хендлера Telegram
 	telegramHandler := handler.NewConsumer(telegramSvc, 100)
