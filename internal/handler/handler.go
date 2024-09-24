@@ -13,7 +13,7 @@ import (
 type Consumer interface {
 	Process(event models.Message) error
 	Start() error
-	Handle(text string, chatId int, username string, messageId int) error
+	Handle(text string, chatId int, username string, messageId int, clback string) error
 	handleEvents(events []models.Message) error
 	processMessage(event models.Message) error
 }
@@ -51,13 +51,14 @@ func (c *consumer) Start() error {
 	}
 }
 
-func (c *consumer) Handle(text string, chatId int, username string, messageId int) error {
+func (c *consumer) Handle(text string, chatId int, username string, messageId int, clback string) error {
 	text = strings.TrimSpace(text)
 	msg := models.Message{
-		ChatId:    chatId,
-		Text:      text,
-		MessageId: messageId,
-		Username:  username,
+		ChatId:       chatId,
+		Text:         text,
+		MessageId:    messageId,
+		Username:     username,
+		CallbackData: clback,
 	}
 	log.Printf("got new command '%s' from '%s'", text, username)
 	return c.processor.HandleMessage(msg)
@@ -85,7 +86,7 @@ func (c *consumer) handleEvents(events []models.Message) error {
 }
 
 func (c *consumer) processMessage(event models.Message) error {
-	if err := c.Handle(event.Text, event.ChatId, event.Username, event.MessageId); err != nil {
+	if err := c.Handle(event.Text, event.ChatId, event.Username, event.MessageId, event.CallbackData); err != nil {
 		return fmt.Errorf("can't process message: %w", err)
 	}
 	return nil

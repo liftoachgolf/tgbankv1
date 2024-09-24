@@ -17,6 +17,7 @@ type Client interface {
 	SetChatMenuButton(chatId int, button models.MenuButton) error
 	UpdateMessage(updateMsg models.UpdateMessage) error
 	SetCommands(commands models.Commands) error
+	SetInlineButton(chatID int, keyboard models.InlineKeyboardMarkup, text string) error
 }
 
 type client struct {
@@ -82,6 +83,20 @@ func (r *client) UpdateMessage(updateMsg models.UpdateMessage) error {
 	q.Add("text", updateMsg.Text)
 
 	_, err := r.doRequest("editMessageText", q)
+	return err
+}
+
+func (r *client) SetInlineButton(chatID int, keyboard models.InlineKeyboardMarkup, text string) error {
+	keyboardJSON, err := json.Marshal(keyboard)
+	if err != nil {
+		return fmt.Errorf("error marshalling keyboard: %w", err)
+	}
+
+	params := url.Values{}
+	params.Add("chat_id", fmt.Sprintf("%d", chatID))
+	params.Add("text", text)
+	params.Add("reply_markup", string(keyboardJSON))
+	_, err = r.doRequest("sendMessage", params)
 	return err
 }
 

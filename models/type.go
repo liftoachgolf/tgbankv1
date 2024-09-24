@@ -6,8 +6,9 @@ type UpdatesResponse struct {
 }
 
 type Update struct {
-	ID         int              `json:"update_id"`
-	GetMessage *IncomingMessage `json:"message"`
+	ID            int              `json:"update_id"`
+	GetMessage    *IncomingMessage `json:"message"`        // Сообщения
+	CallbackQuery *CallbackQuery   `json:"callback_query"` // Callback-запросы
 }
 
 type IncomingMessage struct {
@@ -15,6 +16,13 @@ type IncomingMessage struct {
 	From      From   `json:"from"`
 	Chat      Chat   `json:"chat"`
 	MessageId int    `json:"message_id"`
+}
+
+type CallbackQuery struct {
+	ID      string           `json:"id"`
+	From    From             `json:"from"`
+	Message *IncomingMessage `json:"message"`
+	Data    string           `json:"data"` // Данные, связанные с callback-запросом
 }
 
 type From struct {
@@ -26,10 +34,11 @@ type Chat struct {
 }
 
 type Message struct {
-	MessageId int
-	Text      string
-	ChatId    int
-	Username  string
+	MessageId    int
+	Text         string
+	ChatId       int
+	Username     string
+	CallbackData string
 }
 
 type UpdateMessage struct {
