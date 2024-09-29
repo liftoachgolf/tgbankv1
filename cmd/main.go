@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	t := "7077450094:AAExNrbVTytTFuEsOvb_aCldN5jk6RTyrAk"
+	t := "xxx:xxx"
 	log.Print("starting...")
 
 	// Подключение к базе данных
